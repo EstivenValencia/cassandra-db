@@ -43,14 +43,16 @@ class Cassandra:
             print(f"ERROR [{err}]")
             return False
         
-    def execute_command(self, query, data=None) -> None:
+    def execute_command(self, query, data=None, trace=False) -> list:
+        
         try:
             if data is None:
-                self.session.execute(query)
+                response = self.session.execute(query, trace=trace)
             else:
-                self.session.execute(query, data)
-
+                response = self.session.execute(query, data, trace=trace)
+            
+            return response
         except Exception as err:
             print(f"ERROR [{err}]")
         
-        return None
+            return None

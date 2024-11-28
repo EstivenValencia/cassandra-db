@@ -72,8 +72,8 @@ if __name__ == '__main__':
 
         cassandra.execute_command(query, data)
 
-        # Por cada cancha se simulan 20 datos de jugadoras
-        for _ in range(20):
+        # Por cada cancha se simulan 200 datos de jugadoras
+        for _ in range(200):
             jugadora_id = uuid4()
             nombre = fake.first_name_female()
             primer_apellido = fake.last_name()
@@ -123,9 +123,9 @@ if __name__ == '__main__':
 
                 cassandra.execute_command(query, data)
 
-                # Por cada partido se simulan 10 datos meteorologicos, debido a que se planteo que esta medida se
+                # Por cada partido se simulan 3 datos meteorologicos, debido a que se planteo que esta medida se
                 # tomaría por minuto
-                for _ in range(10):
+                for _ in range(3):
                     partido_id = partido_id
                     cancha_id = cancha_id
                     timestamp = datetime.datetime.now()
@@ -154,8 +154,8 @@ if __name__ == '__main__':
 
                     cassandra.execute_command(query, data)
 
-                    # Por cada medicion meteorologica se simulan 50 datos fisiologicos por cada jugadora
-                    for _ in range(50):
+                    # Por cada medicion meteorologica se simulan 10 datos fisiologicos por cada jugadora
+                    for _ in range(10):
                         partido_id = partido_id
                         jugadora_id = jugadora_id
                         cancha_id = cancha_id

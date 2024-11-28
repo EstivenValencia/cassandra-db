@@ -91,11 +91,6 @@ if __name__ == '__main__':
     cassandra.execute_command(query)
 
     query = """
-                CREATE INDEX ON datos_generales_jugadoras (nombre_equipo);
-            """
-    cassandra.execute_command(query)
-
-    query = """
                 CREATE INDEX ON datos_generales_jugadoras (ano_inicio_futbol);
             """
     cassandra.execute_command(query)

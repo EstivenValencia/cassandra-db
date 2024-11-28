@@ -45,7 +45,7 @@ Tras evaluar el problema, se ha optado por utilizar **Cassandra**, por las sigui
 
 Para la instalación se utilizo un docker de Cassandra y se ejecuto en local de la siguiente manera:
 
-```docker
+```bash
 docker pull cassandra
 
 docker run --name cassandra-big_data -p 9042:9042 -v cassandra-data:/var/lib/cassandra -e CASSANDRA_USER=admin -e CASSANDRA_PASSWORD=admin --hostname cassandra -d cassandra:latest
@@ -65,7 +65,7 @@ El esquema de la base de datos está compuesto por las siguientes tablas:
 
 Para la creación del esquema se provee el script create_tables.py de python que utiliza la clase Cassandra definida en DB_cassandra_tools.py para comunicarse con la base de datos que se encuentra ejecutando en el docker, a su vez la clase se encarga de crear el espacio de trabajo sino existe y lo configura para utilizarlo en las siguientes consultas. El script se ejecuta como sigue acontinuación:
 
-```python
+```bash
     python -m venv env
     source env/bin/activate
     pip install -r requirements.txt
@@ -92,18 +92,15 @@ CREATE TABLE IF NOT EXISTS datos_generales_jugadoras (
     pais_equipo TEXT,
     nombre_equipo TEXT,
     PRIMARY KEY (jugadora_id)
-);
+    );
 ```
 
-Para esta tabla se crean indices segundarios para la utilizacion de filtros, correspondientes a los campos pais_equipo, nombre_equipo y ano_inicio_futbol. 
+Para esta tabla se crean indices segundarios para la utilizacion de filtros, correspondientes a los campos pais_equipo y ano_inicio_futbol. 
 
 ```cql
     CREATE INDEX ON datos_generales_jugadoras (pais_equipo);
-    CREATE INDEX ON datos_generales_jugadoras (nombre_equipo);
     CREATE INDEX ON datos_generales_jugadoras (ano_inicio_futbol);
-
 ```
-
 
 ### Sentencia de creación de Tabla datos fisiologicos
 
@@ -185,15 +182,16 @@ Al finalizar la creacion de las tablas, se ejecuta la siguiente query para verif
 
 ## 3. Sentencias de insercion
 
-Para la insercion de los registros de la base de datos, se desarrollo el script llenado_db.py que utilizando listas predefinidas con ciertos datos para cada variable y utilizando la librería faker, se generan datos sinteticos. En el caso de las listas predefinidas se utiliza la función random para elegir valores aleatorios de las listas. 
+Para la inserción de los registros en la base de datos, se desarrolló el script synthetic_db.py. Este script utiliza listas predefinidas con valores específicos para cada variable, aplicando un muestreo aleatorio. Además, emplea la librería Faker para generar datos sintéticos de manera dinámica.
 
-```python
+```bash
 
-    python llenado_db.py
+    python synthetic_db.py
 
 ```
 
-El script se basa en un conjunto de ciclos anidados en donde primero se crean tres registros de estadios, por cada estadio se crean 20 registros de datos generales de jugadoras. Por cada jugadora se crean 3 partidos y por cada partido se incrustan 10 datos meteorologicos, a su vez por cada registro meteorologico se registran 50 datos fisiologicos.
+El script se estructura en un conjunto de ciclos anidados. En primer lugar, se crean tres registros de estadios. Por cada estadio, se generan 200 registros con datos generales de jugadoras. Posteriormente, para cada jugadora, se crean tres partidos. En cada partido, se insertan tres registros de datos meteorológicos, y por cada registro meteorológico, se añaden 10 registros de datos fisiológicos.
+
 
 ### Registros de estadio
 
@@ -321,14 +319,87 @@ En total se insertan las siguientes cantidades de registros por tabla:
 
 | **Tabla**                     | **Cantidad de Registros** |
 |-------------------------------|---------------------------|
-| `datos_meteorologicos`         | 180                       |
-| `datos_fisiologicos`           | 88,242                    |
-| `datos_generales_jugadoras`    | 60                        |
-| `partidos`                     | 180                       |
+| `datos_meteorologicos`         | 1800                     |
+| `datos_fisiologicos`           | 52778                    |
+| `datos_generales_jugadoras`    | 600                        |
+| `partidos`                     | 1800                       |
 | `informacion_cancha`           | 3                         |
 
 
 ## 4. Sentencias de modificacion para dos de los registros, cambiando el nombre de la jugadora a Mayúsculas.
 
-Debido a que a la hora de crear la tabla de la informacion de las jugadoras se agregaron los indices jugadora_id, nombre_equipo, ano_inicio_futbol, pais_equipo. Es posible realizar la actualización a partir del id de la jugadora, como sigue:
+Dado que al crear la tabla de información de las jugadoras se definió la clave primaria jugadora_id, es posible actualizar los datos de las jugadoras utilizando este atributo. Para realizar esta actualización, se utiliza el script update_instance.py:
 
+```bash
+    python update_instance.py
+```
+
+Este script ejecuta una consulta para obtener los dos primeros registros de la tabla datos_generales_jugadoras. Luego, actualiza los datos de estas jugadoras utilizando el método UPDATE, que convierte el nombre a mayúsculas. La actualización se filtra por la clave primaria jugadora_id. Finalmente, se ejecuta otra consulta para verificar que los cambios se hayan aplicado correctamente.
+
+## 5. Consultas
+
+Las siguientes consultas se pueden obtener ejecutando el archivo queries.py, pero antes es necesario realizar la configuración que se expone en el item a.2.
+
+```bash 
+    python queries.py
+```
+
+#### a.1 Consulta por una jugadora especifica filtrando por el año de comienzo en el football mayor de 2020
+
+```cql 
+    SELECT * FROM datos_generales_jugadoras WHERE ano_inicio_futbol > 2020 ALLOW FILTERING;
+```
+
+#### a.2 Consulta por una jugadora especifica filtrando que el equipo empiece “Manchester…..”
+
+Por defecto, Cassandra no permite utilizar filtros LIKE a menos que se active un índice SASI, el cual es un comando experimental. Para habilitarlo, es necesario modificar las configuraciones del archivo YAML de Cassandra. Los pasos a seguir son los siguientes:
+
+```bash
+    docker exec -it cassandra-big_data bash
+```
+
+Dentro del contenedor debemos actualizar los paquetes e instalar vim
+
+```bash
+    apt-get update
+    apt-get install vim
+    vim /etc/cassandra/cassandra.yaml
+
+```
+
+Ya dentro de este archivo debemos buscar la seccion de SASI y poner sasi_indexes_enabled a true. luego cerramos el archivo y reiniciamos el contenedor. 
+
+Dentro del script queries.py se crea el indice segundario SASI para nombre_equipo como se presenta a continuación:
+
+```cql
+    CREATE INDEX ON datos_generales_jugadoras (nombre_equipo)
+    USING 'org.apache.cassandra.index.sasi.SASIIndex' 
+    WITH OPTIONS = {'analyzer_class': 'org.apache.cassandra.index.sasi.analyzer.StandardAnalyzer', 
+    'case_sensitive': 'false'};
+```
+
+La consulta para obtener las jugadoras que se encuentren en el equipo se muestra a continuación:
+
+```cql
+    SELECT * FROM datos_generales_jugadoras WHERE nombre_equipo LIKE 'Manchester%';
+```
+
+#### b. Consulta por un país concreto donde juega una jugadora
+
+```cql
+    SELECT * FROM datos_generales_jugadoras WHERE pais_equipo='Alemania';
+```
+
+### Tabla de tiempos
+
+| **Consulta**                     | **Tiempo** |
+|-------------------------------|---------------------------|
+| `a1`         | 0.006833 seg                       |
+| `a2`           | 0.020474 seg                   |
+| `b`    | 0.009306 seg                       |
+
+## 6. Conclusiones
+
+En el caso de los tiempos de consulta, se observa una respuesta rápida gracias a la definición de los índices secundarios. Sin embargo, según la documentación de Cassandra, estos índices pueden ser menos eficientes que los filtros basados en claves primarias. Aun así, los índices secundarios son útiles para realizar filtros ocasionales sobre columnas que no fueron consideradas durante el diseño inicial del esquema.
+
+Por otro lado, se evidencia la ineficiencia del uso del comando LIKE, que aún se encuentra en una fase temprana de desarrollo en Cassandra. Para emplearlo, es necesario definir un índice SASI en la columna que se desea filtrar. Durante las pruebas, se comprobó que las consultas con LIKE son hasta tres veces más lentas que las consultas normales. Además, esta diferencia podría aumentar de forma no lineal a medida que crece el volumen de datos en la base de datos.
